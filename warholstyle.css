@@ -1,0 +1,28 @@
+#inuptButton {
+        padding: 50px 50px 50px 50px;
+}
+
+p {
+        color: green;
+        text-align: center;
+}
+
+.image {
+        display: none;
+        width: auto;
+        height: auto;
+        max-width: 300px;
+        max-height: 300px;
+}
+
+td {
+        max-width: auto;
+        max-height: auto;
+        padding:0; margin:0;
+
+}
+
+table { 
+        border-spacing: 0;
+        border-collapse: collapse;
+}
