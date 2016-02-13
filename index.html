@@ -1,1 +1,47 @@
-mypage
+<html>
+<head>
+        <title> Warholer </title>
+        <script src="helper.js" type="text/javascript"></script>
+        <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+
+        <script> 
+                $('#img2').click(function() {
+                        alert("hi");
+                });
+                function doThing() {
+                        alert('hi');
+                        $('#text').text("ballsack");
+                        alert($('#text').text());
+                }
+
+                function readURL(input) {
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+
+            reader.onload = function (e) {
+                $('.blah')
+                    .attr('src', e.target.result)
+                    .width(150)
+                    .height(200);
+            };
+
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+        </script>
+</head>
+<body>
+
+
+  <input type='file' onchange="readURL(this);" />
+  <br>
+    <img class="blah" src="#" alt="your image" />    <img class="blah" src="#" alt="your image" />
+<br>
+    <img class="blah" src="#" alt="your image" />
+    <img class="blah" src="#" alt="your image" />
+
+<!-- <img id="img2" src="doodle7.png" onclick="doThing();"/> -->
+</body>
+
+</html>
