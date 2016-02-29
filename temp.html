@@ -35,6 +35,7 @@
         }(document, 'script', 'facebook-jssdk'));
         // login with facebook with extened publish_actions permission
         function login() {
+            alert("logging in");
             FB.login(function(response) {
                 if (response.status === 'connected') {
                     document.getElementById('status').innerHTML = 'We are connected.';
