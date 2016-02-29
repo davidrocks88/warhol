@@ -65,7 +65,9 @@
                     "/me/photos",
                     "POST",
                     {
-                        "url": url
+                        "url": url,
+                        "access_token": authorization.accessToken,
+                        "scope": 'publish_actions'
                     },
                     function (response) {
                         console.log(response);
