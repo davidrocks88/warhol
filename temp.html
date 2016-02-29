@@ -95,7 +95,23 @@
             // });
         }
 
+        function permissions() {
+            FB.api(
+                    "/me/permissions",
+                    function (response) {
+                      if (response && !response.error) {
+                        /* handle the result */
+                        console.log(response);
+                      }
+                      else {
+                        console.log("ERROR");
+                        console.log(response);
+                    }
+                    }
+                );
 
+
+        }
 
     </script>
 
@@ -103,5 +119,7 @@
     <button onclick="uploadPhoto()">Upload Photo</button>
     <button onclick="getInfo()">Get Info</button>
     <button onclick="login()" id="login">Login</button>
+    <button onclick="permissions()" id="permissions">permissions</button>
+
 </body>
 </html>
