@@ -35,7 +35,6 @@
         }(document, 'script', 'facebook-jssdk'));
         // login with facebook with extened publish_actions permission
         function login() {
-            alert("logging in");
             FB.login(function(response) {
                 if (response.status === 'connected') {
                     document.getElementById('status').innerHTML = 'We are connected.';
@@ -59,24 +58,18 @@
         function uploadPhoto() {
 
             var authorization = FB.getAuthResponse();
-            var url = prompt("GIVE ME URL", "OM NON NOM");
+            var url = prompt("give me url", "");
             /* make the API call */
                 FB.api(
                     "/me/photos",
                     "POST",
                     {
-                        "url": url,
-                        "access_token": authorization.accessToken,
-                        "scope": 'publish_actions'
+                        "url": url
                     },
                     function (response) {
                         console.log(response);
                       if (response && !response.error) {
                         /* handle the result */
-                        console.log(response);
-                      }
-                      else {
-                        alert("error");
                         console.log(response);
                       }
                     }
@@ -112,6 +105,8 @@
 
 
         }
+
+
 
     </script>
 
