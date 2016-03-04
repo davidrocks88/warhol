@@ -11,9 +11,18 @@ p {
         display: none;
         width: auto;
         height: auto;
+                background: url(img/redPic.png) no-repeat;
+
         max-width: 300px;
         max-height: 300px;
 }
+
+/*.image:hover {
+        width: auto;
+        height: auto;
+        max-width: 300px;
+        max-height: 300px;
+}*/
 
 td {
         max-width: auto;
