@@ -23,6 +23,9 @@
                   // .width(150)
                   // .height(200);
           };
+          $('.title')
+                  .show()
+
 
           reader.readAsDataURL(input.files[0]);
           }
@@ -136,15 +139,10 @@
 
     </script>
 
-    <div id="status"></div>
-    <button onclick="uploadPhoto()">Upload Photo</button>
-    <button onclick="getInfo()">Get Info</button>
-    <button onclick="login()" id="login">Login</button>
-    <button onclick="permissions()" id="permissions">permissions</button>
-    <button onclick="logout()" id="logout">logout</button>
 
 
-<table>
+<h1 class="title" align="center"> Gender binary is such a drag.</h1>
+<table align = "center">
   <tr>
     <td><img class="image" src="#" alt="your image" /></td>
     <td><img class="image" src="#" alt="your image" /></td> 
@@ -154,7 +152,13 @@
     <td><img class="image" src="#" alt="your image" /></td> 
   </tr>
 </table>
-
+<h1 class = "title" align="center"> Kings, Queens, and In-Betweens, premiering at CIFF this Spring </h1>
+    <div id="status"></div>
+    <button onclick="uploadPhoto()">Upload Photo</button>
+    <button onclick="getInfo()">Get Info</button>
+    <button onclick="login()" id="login">Login</button>
+    <button onclick="permissions()" id="permissions">permissions</button>
+    <button onclick="logout()" id="logout">logout</button>
 
 <div id = "inputButton"> <input type='file' accept="image/*;capture=camera" onchange="readURL(this);" /></div><!-- <img id="img2" src="doodle7.png" onclick="doThing();"/> -->
 </body>

@@ -17,6 +17,10 @@ p {
         max-height: 300px;
 }
 
+.title {
+        display: none;
+}
+
 /*.image:hover {
         width: auto;
         height: auto;
