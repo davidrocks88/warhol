@@ -11,14 +11,16 @@ p {
         display: none;
         width: auto;
         height: auto;
-                background: url(img/redPic.png) no-repeat;
+                background: url(img/pic.png) no-repeat;
 
-        max-width: 300px;
-        max-height: 300px;
+/*        max-width: 300px;
+        max-height: 300px;*/
 }
 
 .title {
         display: none;
+        color: white;
+        border-style: solid;
 }
 
 /*.image:hover {
@@ -38,4 +40,8 @@ td {
 table { 
         border-spacing: 0;
         border-collapse: collapse;
+}
+
+body {
+        background: black;
 }

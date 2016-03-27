@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Face substitution</title>
+		<meta charset="utf-8">
+		<link rel="stylesheet" href="face.css" type="text/css" />
+		<script>
+			// getUserMedia only works over https in Chrome 47+, so we redirect to https. Also notify user if running from file.
+			if (window.location.protocol == "file:") {
+				alert("You seem to be running this example directly from a file. Note that these examples only work when served from a server or localhost due to canvas cross-domain restrictions.");
+			} else if (window.location.hostname !== "localhost" && window.location.protocol !== "https:"){
+				window.location.protocol = "https";
+			}
+		</script>
+		<script type="text/javascript">
+
+			var _gaq = _gaq || [];
+			_gaq.push(['_setAccount', 'UA-32642923-1']);
+			_gaq.push(['_trackPageview']);
+
+			// (function() {
+			// 	var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+			// 	ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+			// 	var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+			// })();
+
+		</script>
+	</head>
+	<body>
+		<script src="js/dat.gui.min.js"></script>
+		<script src="js/utils.js"></script>
+		<script src="js/clmtrackr.js"></script>
+		<script src="models/model_pca_20_svm.js"></script>
+		<script src="js/Stats.js"></script>
+		<script src="js/face_deformer.js"></script>
+		<script src="js/jquery.min.js"></script>
+		<script src="js/poisson_new.js"></script>
+		
+		<div id="content">
+			<h2>Face substitution</h2>
+			<div id="container">
+				<video id="videoel" width="400" height="300" preload="auto">
+				</video>
+				<canvas id="overlay" width="400" height="300"></canvas>
+				<canvas id="webgl" width="400" height="300"></canvas>
+			</div>
+			<br/>
+			<div id="controls">
+				<input class="btn" type="button" value="wait, loading video & images" disabled="disabled" onclick="startVideo()" id="startbutton"></input>
+				<select name="mask" id="selectmask">
+					<option value="1">Terminator</option>
+				</select>
+			</div>
+			
+			<canvas id="webgl2" width="400" height="300"></canvas>
+			<script>
+				var images = [
+					{"id":"terminator", "path":"./media/terminator_crop.jpg"},
+				];
+
+				// when everything is ready, automatically start everything ?
+
+				var vid = document.getElementById('videoel');
+				var overlay = document.getElementById('overlay');
+				var overlayCC = overlay.getContext('2d');	
+				
+				/*********** Setup of video/webcam and checking for webGL support *********/
+
+				var videoReady = false;
+				var imagesReady = false;
+				
+				function enablestart() {
+					if (videoReady && imagesReady) {
+						var startbutton = document.getElementById('startbutton');
+						startbutton.value = "start";
+						startbutton.disabled = null;
+					}
+				}
+
+				$(window).load(function() {
+    					enablestart();
+				});
+				
+				var insertAltVideo = function(video) {
+					if (supports_video()) {
+						if (supports_ogg_theora_video()) {
+							video.src = "../media/cap13_edit2.ogv";
+						} else if (supports_h264_baseline_video()) {
+							video.src = "../media/cap13_edit2.mp4";
+						} else {
+							return false;
+						}
+						//video.play();
+						return true;
+					} else return false;
+				}
+
+				// check whether browser supports webGL
+				var webGLContext;
+				var webGLTestCanvas = document.createElement('canvas');
+				if (window.WebGLRenderingContext) {
+					webGLContext = webGLTestCanvas.getContext('webgl') || webGLTestCanvas.getContext('experimental-webgl');
+					if (!webGLContext || !webGLContext.getExtension('OES_texture_float')) {
+						webGLContext = null;
+					}
+				}
+				if (webGLContext == null) {
+					alert("Your browser does not seem to support WebGL. Unfortunately this face mask example depends on WebGL, so you'll have to try it in another browser. :(");
+				}
+				
+				navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+				window.URL = window.URL || window.webkitURL || window.msURL || window.mozURL;
+				
+				// check for camerasupport
+				if (navigator.getUserMedia) {
+					// set up stream
+					
+					// chrome 19 shim
+					var videoSelector = {video : true};
+					if (window.navigator.appVersion.match(/Chrome\/(.*?) /)) {
+						var chromeVersion = parseInt(window.navigator.appVersion.match(/Chrome\/(\d+)\./)[1], 10);
+						if (chromeVersion < 20) {
+							videoSelector = "video";
+						}
+					};
+					
+					navigator.getUserMedia(videoSelector, function( stream ) {
+						if (vid.mozCaptureStream) {
+							vid.mozSrcObject = stream;
+						} else {
+							vid.src = (window.URL && window.URL.createObjectURL(stream)) || stream;
+						}
+						vid.play();
+					}, function() {
+						alert("There was some problem trying to fetch video from your webcam.");
+					});
+				} else {
+					alert("Your browser does not seem to support getUserMedia, try using a different browser.");
+				}
+
+				vid.addEventListener('canplay', function() {videoReady = true;enablestart();}, false);
+
+				/*********** Code for face substitution *********/
+				
+				var animationRequest;
+				var positions;
+
+				var ctrack = new clm.tracker();
+				ctrack.init(pModel);
+
+				document.getElementById('selectmask').addEventListener('change', updateMask, false);
+
+				function updateMask(el) {
+					currentMask = parseInt(el.target.value, 10);
+					var positions = ctrack.getCurrentPosition(vid);
+					if (positions) {
+						switchMasks(positions);
+					}
+				}
+
+				function startVideo() {
+					// start video
+					vid.play();
+					// start tracking
+					ctrack.start(vid);
+					// start drawing face grid
+					drawGridLoop();
+				}
+
+				var fd = new faceDeformer();
+				fd.init(document.getElementById('webgl'));
+				var wc1 = document.getElementById('webgl').getContext('webgl') || document.getElementById('webgl').getContext('experimental-webgl')
+				wc1.clearColor(0,0,0,0);
+
+				var fd2 = new faceDeformer();
+				fd2.init(document.getElementById('webgl2'));
+				var wc2 = document.getElementById('webgl2').getContext('webgl') || document.getElementById('webgl2').getContext('experimental-webgl')
+				wc2.clearColor(0,0,0,0);
+
+				var masks = {
+					"terminator" : [[29.076884732031772, 71.67890495708096], [27.66651993257193, 111.97958383082613], [32.905495727938842, 143.74759287325199], [41.548602943722187, 184.11191523512548], [57.134123028769864, 212.96132714313779], [85.982596883100427, 233.23682483532389], [116.34553106231533, 252.07189468414344], [153.54377487815492, 254.19994252292111], [184.09352786394243, 250.19280744913965], [210.84006513830786, 231.78958626538036], [230.33265432712187, 207.95546707713771], [242.54473105521458, 181.16454996007155], [245.32603716786156, 139.23222747588432], [253.95701774571654, 105.75356333489501], [250.16872236069304, 65.614622446558542], [234.42162441623111, 41.376144700389091], [218.06038382338016, 36.763971825401342], [195.01785757186678, 35.830381277151389], [173.22532214596566, 34.948429471706561], [54.903911233483029, 46.44126936726903], [74.831645200221715, 38.453426351873134], [97.147393013378746, 35.780078496224263], [124.15086404891906, 35.195299880035805], [66.35520762891224, 68.235316884765297], [88.846275187033712, 57.941876489833845], [109.10692456289365, 65.835365585188669], [89.15198347590956, 71.177597719421669], [88.362391942502256, 64.59180321109983], [223.52418336992747, 66.464653942855051], [200.72181416528224, 58.073962248085365], [180.51423847597891, 65.002569315598549], [201.60598302791442, 70.107080712007587], [201.4188717262528, 64.775640131702488], [151.03576003916953, 45.081162477481598], [123.46403491514627, 106.14140125029522], [119.73138344106076, 117.43345384315626], [125.15573426423208, 129.00558710238695], [156.06226938811682, 127.12365384578027], [178.19840010320991, 126.83676679574947], [183.26702924895841, 115.66950743874682], [175.51141450984255, 106.54676093041451], [151.75947907777766, 76.366817652668487], [133.66421579983097, 119.32339634260134], [172.1834824765383, 119.87854085001544], [107.48695740367185, 177.84786130901512], [119.72239618002311, 163.21478187250497], [140.4464890346631, 155.71112137112985], [155.86678473236145, 157.98177593573888], [167.21471198020845, 154.86495601683998], [180.68374974978832, 159.73999260624254], [190.76005528035921, 174.67434883370834], [180.73253431596419, 176.39562238973116], [169.53742410945182, 178.06866551441919], [155.53681594702357, 179.73851637572324], [141.80213459545843, 178.11191356675113], [126.33903348640217, 177.0074496842052], [132.38439794118267, 166.9144754158774], [154.18525275215882, 167.75142144628433], [171.26254237748122, 167.51576938990513], [172.534822324375, 166.51169079958765], [154.17356764276303, 166.77640382116056], [132.74611931034815, 165.54314795883778], [153.13151808703924, 107.35065481861218], [75.600007764156032, 61.08502670255362], [100.47692695245246, 59.887169821044154], [99.128136594613807, 69.002790596812332], [76.251785226012998, 71.202785857452454], [213.62188629502043, 60.266713925593479], [190.61716649430633, 59.53824381943511], [190.06078776389984, 69.052650607094705], [212.06614469025487, 68.784081158860744]]
+				};
+				console.log(masks);
+				
+				var currentMask = 0;
+				
+				// canvas for copying the warped face to
+				var newcanvas = document.createElement('CANVAS');
+				newcanvas.width = vid.width;
+				newcanvas.height = vid.height;
+				// canvas for copying videoframes to
+				var videocanvas = document.createElement('CANVAS');
+				videocanvas.width = vid.width;
+				videocanvas.height = vid.height;
+				// canvas for masking
+				var maskcanvas = document.createElement('CANVAS');
+				maskcanvas.width = vid.width;
+				maskcanvas.height = vid.height;
+
+				// create canvases for all the faces
+				var imageCanvases = {};
+				var imageCount = 0;
+				loadMask = function(index){
+					var mask = new Image();
+					mask.onload = function(obj){
+						var elementId = images[index].id;
+
+						// copy the images to canvases
+						imagecanvas = document.createElement('CANVAS');
+						imagecanvas.width = obj.target.width;
+						imagecanvas.height = obj.target.height;
+						imagecanvas.getContext('2d').drawImage(obj.target,0,0);
+						imageCanvases[elementId] = imagecanvas;
+
+						imageCount += 1;
+						if (imageCount == images.length) {
+							imagesReady = true;
+						}
+						enablestart();
+					}
+              				mask.src = images[index].path;
+				}
+				//load masks
+				for (var i = 0;i < images.length;i++) {
+					loadMask(i);
+				}
+
+				var extended_vertices = [
+				  [0,71,72,0],
+				  [0,72,1,0],
+				  [1,72,73,1],
+				  [1,73,2,1],
+				  [2,73,74,2],
+				  [2,74,3,2],
+				  [3,74,75,3],
+				  [3,75,4,3],
+				  [4,75,76,4],
+				  [4,76,5,4],
+				  [5,76,77,5],
+				  [5,77,6,5],
+				  [6,77,78,6],
+				  [6,78,7,6],
+				  [7,78,79,7],
+				  [7,79,8,7],
+				  [8,79,80,8],
+				  [8,80,9,8],
+				  [9,80,81,9],
+				  [9,81,10,9],
+				  [10,81,82,10],
+				  [10,82,11,10],
+				  [11,82,83,11],
+				  [11,83,12,11],
+				  [12,83,84,12],
+				  [12,84,13,12],
+				  [13,84,85,13],
+				  [13,85,14,13],
+				  [14,85,86,14],
+				  [14,86,15,14],
+				  [15,86,87,15],
+				  [15,87,16,15],
+				  [16,87,88,16],
+				  [16,88,17,16],
+				  [17,88,89,17],
+				  [17,89,18,17],
+				  [18,89,90,18],
+				  [18,90,22,18],
+				  [22,90,21,22],
+				  [21,90,91,21],
+				  [21,20,91,21],
+				  [20,91,92,20],
+				  [20,92,19,20],
+				  [19,92,93,19],
+				  [19,93,71,19],
+				  [19,0,71,19],
+				  [44,61,56,44],
+				  [60,61,56,60],
+				  [60,56,57,60],
+				  [60,59,57,60],
+				  [58,59,57,58],
+				  [58,59,50,58]
+				];
+
+				function drawGridLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition(vid);
+
+					overlayCC.clearRect(0, 0, 500, 375);
+					if (positions) {
+						// draw current grid
+						ctrack.draw(overlay);
+					}
+					// check whether mask has converged
+					var pn = ctrack.getConvergence();
+					if (pn < 0.4) {
+						switchMasks(positions);
+					} else {
+						requestAnimFrame(drawGridLoop);
+					}
+				}
+					
+				function switchMasks(pos) {
+					videocanvas.getContext('2d').drawImage(vid,0,0,videocanvas.width,videocanvas.height);
+					
+					// we need to extend the positions with new estimated points in order to get pixels immediately outside mask
+					var newMaskPos = masks[images[currentMask].id].slice(0);
+					var newFacePos = pos.slice(0);
+					var extInd = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,22,21,20,19];
+					var newp;
+					for (var i = 0;i < 23;i++) {
+						newp = [];
+						newp[0] = (newMaskPos[extInd[i]][0]*1.3) - (newMaskPos[62][0]*0.3);// short for ((newMaskPos[extInd[i]][0]-newMaskPos[62][0])*1.1)+newMaskPos[62][0]
+						newp[1] = (newMaskPos[extInd[i]][1]*1.3) - (newMaskPos[62][1]*0.3);
+						newMaskPos.push(newp);
+						newp = [];
+						newp[0] = (newFacePos[extInd[i]][0]*1.3) - (newFacePos[62][0]*0.3);
+						newp[1] = (newFacePos[extInd[i]][1]*1.3) - (newFacePos[62][1]*0.3);
+						newFacePos.push(newp);
+					}
+					// also need to make new vertices incorporating area outside mask
+					var newVertices = pModel.path.vertices.concat(extended_vertices);
+
+					// deform the mask we want to use to face form
+					fd2.load(imageCanvases[images[currentMask].id], newMaskPos, pModel, newVertices);
+					fd2.draw(newFacePos);
+					// and copy onto new canvas
+					newcanvas.getContext('2d').drawImage(document.getElementById('webgl2'),0,0);
+
+					// create masking
+					var tempcoords = positions.slice(0,18);
+					tempcoords.push(positions[21]);
+					tempcoords.push(positions[20]);
+					tempcoords.push(positions[19]);
+					createMasking(maskcanvas, tempcoords);
+
+					// do poisson blending
+					Poisson.load(newcanvas, videocanvas, maskcanvas, function() {
+						var result = Poisson.blend(30, 0, 0);
+						// render to canvas
+						newcanvas.getContext('2d').putImageData(result, 0, 0);
+						// get mask
+
+						var maskname = Object.keys(masks)[currentMask];
+						fd.load(newcanvas, pos, pModel);
+						requestAnimFrame(drawMaskLoop);
+					});
+				}
+				
+				function drawMaskLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition();
+
+					overlayCC.clearRect(0, 0, 400, 300);
+					if (positions) {
+						// draw mask on top of face
+						fd.draw(positions);
+					}
+					animationRequest = requestAnimFrame(drawMaskLoop);
+				}
+
+				function createMasking(canvas, modelpoints) {
+					// fill canvas with black
+					var cc = canvas.getContext('2d');
+					cc.fillStyle="#000000";
+					cc.fillRect(0,0,canvas.width, canvas.height);
+					cc.beginPath();
+					cc.moveTo(modelpoints[0][0], modelpoints[0][1]);
+					for (var i = 1;i < modelpoints.length;i++) {
+						cc.lineTo(modelpoints[i][0], modelpoints[i][1]);
+					}
+					cc.lineTo(modelpoints[0][0], modelpoints[0][1]);
+					cc.closePath();
+					cc.fillStyle="#ffffff";
+					cc.fill();
+				}
+
+			</script>
+		</div>
+		<p> credit goes to <a href="https://auduno.github.io/clmtrackr/examples/facesubstitution.html"> https://auduno.github.io/clmtrackr/examples/facesubstitution.html </a> </p>
+	</body>
+</html>
